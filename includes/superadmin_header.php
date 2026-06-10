@@ -31,6 +31,8 @@ $current_path = $_SERVER['REQUEST_URI'] ?? '/';
         <a href="<?= APP_URL ?>/superadmin/chat.php"          class="<?= strpos($current_path, 'superadmin/chat')          !== false ? 'active' : '' ?>" id="chatNavLink">&#128172; Chat <span id="chatUnreadBadge" style="display:none;background:#ef4444;color:#fff;border-radius:10px;font-size:.7rem;padding:.05rem .4rem;margin-left:.2rem">0</span></a>
         <a href="<?= APP_URL ?>/superadmin/activity.php"      class="<?= strpos($current_path, 'superadmin/activity')      !== false ? 'active' : '' ?>">&#128203; Activity</a>
         <hr>
+        <?php require_once dirname(__DIR__) . '/includes/storefronts.php'; render_storefront_nav(); ?>
+        <hr>
         <a href="<?= APP_URL ?>/logout.php">&#128682; Logout</a>
     </nav>
     <div class="sa-user">

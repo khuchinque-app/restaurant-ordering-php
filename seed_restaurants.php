@@ -17,8 +17,9 @@
 require_once __DIR__ . '/db.php';
 
 $RESTAURANTS = [
-    ['slug' => 'aseng',  'name' => 'Aseng',  'description' => 'Authentic flavors, freshly prepared.'],
-    ['slug' => 'tittil', 'name' => 'Tittil', 'description' => "Treats and bites you'll love."],
+    ['slug' => 'aseng',       'name' => 'Aseng',       'description' => 'Authentic flavors, freshly prepared.'],
+    ['slug' => 'tittil',      'name' => 'Tittil',      'description' => "Treats and bites you'll love."],
+    ['slug' => 'grill_house', 'name' => 'Grill House', 'description' => 'Best grills in town. Flame-cooked to perfection.'],
 ];
 
 function slugify(string $s): string {

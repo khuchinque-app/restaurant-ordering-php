@@ -1,7 +1,7 @@
 <?php
 $page_title = 'Stock Management';
 include dirname(__DIR__) . '/includes/superadmin_header.php';
-include dirname(__DIR__) . '/db.php';
+require_once dirname(__DIR__) . '/db.php';
 
 $restaurants = db_query('SELECT id, name, slug FROM Restaurant WHERE isActive = 1 ORDER BY name');
 

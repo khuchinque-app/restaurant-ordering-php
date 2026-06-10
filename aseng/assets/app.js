@@ -187,7 +187,7 @@ function renderItems(items) {
     if (!items.length) { grid.innerHTML = '<p style="padding:2rem;color:#6b7280;text-align:center">No items found.</p>'; return; }
     grid.innerHTML = items.map(i => `
         <div class="menu-card">
-            ${i.image ? `<img src="${esc(i.image)}" alt="${esc(i.name)}">` : '<div class="img-placeholder">&#127860;</div>'}
+            ${i.image ? `<img src="${esc(i.image)}" alt="${esc(i.name)}" onerror="this.style.display='none'">` : '<div class="img-placeholder">&#127860;</div>'}
             <div class="card-body">
                 <div class="card-cat">${esc(i.categoryName || '')}</div>
                 <div class="card-name">${esc(i.name)}</div>

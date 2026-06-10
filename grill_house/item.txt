@@ -1,0 +1,7 @@
+# Grill House — menu items
+# One item per line, comma-separated. Lines starting with # are ignored.
+# Columns:  category , name , price , stock , lowStock , image
+Grills, BBQ Ribs, 22.99, 20, 5,
+Grills, Grilled Salmon, 18.99, 15, 3,
+Beverages, Grilled Corn, 4.99, 40, 8,
+Beverages, Iced Tea, 2.99, 80, 10,

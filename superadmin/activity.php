@@ -1,7 +1,7 @@
 <?php
 $page_title = 'Activity History';
 include dirname(__DIR__) . '/includes/superadmin_header.php';
-include dirname(__DIR__) . '/db.php';
+require_once dirname(__DIR__) . '/db.php';
 
 // Filters
 $filter_user       = $_GET['user']       ?? '';

@@ -1,7 +1,7 @@
 <?php
 $page_title = 'Staff Chat';
 include dirname(__DIR__) . '/includes/superadmin_header.php';
-include dirname(__DIR__) . '/db.php';
+require_once dirname(__DIR__) . '/db.php';
 ?>
 
 <style>

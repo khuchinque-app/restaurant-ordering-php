@@ -1,7 +1,7 @@
 <?php
 $page_title = 'Stock (Read Only)';
 include dirname(__DIR__) . '/includes/admin_header.php';
-include dirname(__DIR__) . '/db.php';
+require_once dirname(__DIR__) . '/db.php';
 
 $restaurant = get_restaurant();
 $rid = $restaurant['id'] ?? null;
