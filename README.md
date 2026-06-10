@@ -12,9 +12,32 @@ Pure PHP + HTML/CSS/JS rewrite of the original Next.js project. No framework, no
 # From the php/ directory
 php -S 0.0.0.0:8080
 
-# First time only — seed the database
-curl http://localhost:8080/setup.php
+# First time only — create tables, then seed the database
+php schema.php              # creates the schema (tables) if the DB is empty
+curl http://localhost:8080/setup.php   # seeds Demo Restaurant + sample menu
+php seed_restaurants.php    # seeds the extra storefronts (aseng, tittil) from their item.txt files
 ```
+
+### Setup / seed scripts
+
+| Script                  | Purpose                                                                 |
+|-------------------------|-------------------------------------------------------------------------|
+| `schema.php`            | Creates all tables (run once on an empty DB).                           |
+| `setup.php`             | Seeds the default Demo Restaurant, users, and a 10-item sample menu.    |
+| `seed_restaurants.php`  | Idempotent seed/sync for additional storefronts (`aseng`, `tittil`) — reads each storefront's `item.txt`. Safe to re-run; matches by slug/name so it never duplicates. |
+
+### Adding a storefront's menu
+
+Each storefront folder (e.g. `aseng/`, `tittil/`) holds an `item.txt`:
+
+```
+# category , name , price , stock , lowStock , image
+Mains, Nasi Goreng, 8.50, 40, 5, nasi-goreng.jpg
+```
+
+`image` is a filename placed in that storefront's `assets/images/` folder. Run
+`php seed_restaurants.php` to apply changes. Each storefront also has its own
+`assets/favicon.ico`.
 
 ---
 
