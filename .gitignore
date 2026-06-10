@@ -1,0 +1,26 @@
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Config overrides (create config.local.php for local overrides)
+config.local.php
+
+# Logs
+*.log
+error_log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# PHP uploads / cache
+uploads/
+cache/
+tmp/

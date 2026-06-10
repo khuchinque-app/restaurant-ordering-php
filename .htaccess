@@ -1,0 +1,18 @@
+Options -Indexes
+DirectoryIndex index.php
+
+# Protect sensitive files
+<FilesMatch "^(config|db|auth)\.php$">
+    Order allow,deny
+    Deny from all
+</FilesMatch>
+
+# Allow API and pages
+<FilesMatch "\.(php|css|js|png|jpg|jpeg|gif|ico|svg|woff2?)$">
+    Order allow,deny
+    Allow from all
+</FilesMatch>
+
+# PHP settings
+php_flag session.cookie_httponly On
+php_flag session.use_strict_mode On
