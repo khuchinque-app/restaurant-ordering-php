@@ -100,6 +100,16 @@ php/
 │   ├── index.html
 │   └── assets/ (style.css, app.js)
 │
+├── aseng/                     # Customer SPA — Aseng
+│   ├── index.html
+│   ├── item.txt               # menu source for seed_restaurants.php
+│   └── assets/ (style.css, app.js, favicon.ico, images/)
+│
+├── tittil/                    # Customer SPA — Tittil
+│   ├── index.html
+│   ├── item.txt               # menu source for seed_restaurants.php
+│   └── assets/ (style.css, app.js, favicon.ico, images/)
+│
 ├── assets/
 │   ├── css/ (style.css, admin.css, superadmin.css)
 │   └── js/  (app.js, admin.js, superadmin.js)
@@ -138,12 +148,13 @@ Customers never need to register. Cart is stored in `localStorage`; orders are t
 
 ## Multi-Restaurant
 
-Each restaurant folder (`demo_restaurant/`, `grill_house/`) is a standalone customer SPA. To add a new one:
+Each restaurant folder (`demo_restaurant/`, `grill_house/`, `aseng/`, `tittil/`) is a standalone customer SPA. To add a new one:
 
-1. Create the restaurant in **Superadmin → Restaurants**.
+1. Create the restaurant in **Superadmin → Restaurants** (or add it to `seed_restaurants.php`).
 2. Duplicate any existing folder, rename it to the new slug.
 3. In `assets/app.js` change `RESTAURANT_SLUG = 'your_slug'`.
-4. That's it — the API uses the slug to scope all data.
+4. Drop a `favicon.ico` and any item images in `assets/` / `assets/images/`, and list the menu in `item.txt`.
+5. Run `php seed_restaurants.php` to load the menu. The API uses the slug to scope all data.
 
 ---
 
