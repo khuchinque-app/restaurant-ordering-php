@@ -3,7 +3,10 @@ $page_title = 'Stock (Read Only)';
 include dirname(__DIR__) . '/includes/admin_header.php';
 require_once dirname(__DIR__) . '/db.php';
 
-$restaurant = get_restaurant();
+// Use the logged-in admin's assigned restaurant
+$restaurant = $current_user['restaurantId']
+    ? get_restaurant_by_id($current_user['restaurantId'])
+    : get_restaurant();
 $rid = $restaurant['id'] ?? null;
 
 $filter = $_GET['filter'] ?? '';
@@ -33,13 +36,7 @@ $items = $rid ? db_query(
 <div class="card">
     <table class="table">
         <thead>
-            <tr>
-                <th>Item</th>
-                <th>Category</th>
-                <th>Stock</th>
-                <th>Threshold</th>
-                <th>Status</th>
-            </tr>
+            <tr><th>Item</th><th>Category</th><th>Stock</th><th>Threshold</th><th>Status</th></tr>
         </thead>
         <tbody>
         <?php foreach ($items as $item):

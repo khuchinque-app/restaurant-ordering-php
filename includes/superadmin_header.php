@@ -3,7 +3,7 @@ require_once dirname(__DIR__) . '/auth.php';
 session_init();
 $current_user = get_auth_user();
 if (!$current_user || $current_user['role'] !== 'SUPERADMIN') {
-    header('Location: ' . APP_URL . '/index.php');
+    header('Location: ' . APP_URL . '/login.php?redirect=' . urlencode($_SERVER['REQUEST_URI'] ?? '/superadmin/'));
     exit;
 }
 $current_path = $_SERVER['REQUEST_URI'] ?? '/';
@@ -25,6 +25,7 @@ $current_path = $_SERVER['REQUEST_URI'] ?? '/';
     <nav class="sa-nav">
         <a href="<?= APP_URL ?>/superadmin/index.php"         class="<?= strpos($current_path, 'superadmin/index')         !== false ? 'active' : '' ?>">&#128202; Dashboard</a>
         <a href="<?= APP_URL ?>/superadmin/restaurants.php"   class="<?= strpos($current_path, 'superadmin/restaurants')   !== false ? 'active' : '' ?>">&#127974; Restaurants</a>
+        <a href="<?= APP_URL ?>/superadmin/menu.php"          class="<?= strpos($current_path, 'superadmin/menu')          !== false ? 'active' : '' ?>">&#128196; Menu Items</a>
         <a href="<?= APP_URL ?>/superadmin/users.php"         class="<?= strpos($current_path, 'superadmin/users')         !== false ? 'active' : '' ?>">&#128100; Users</a>
         <a href="<?= APP_URL ?>/superadmin/reports.php"       class="<?= strpos($current_path, 'superadmin/reports')       !== false ? 'active' : '' ?>">&#128196; Reports</a>
         <a href="<?= APP_URL ?>/superadmin/stock.php"         class="<?= strpos($current_path, 'superadmin/stock')         !== false ? 'active' : '' ?>">&#128230; Stock</a>

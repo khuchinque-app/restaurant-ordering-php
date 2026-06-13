@@ -3,10 +3,13 @@ require_once dirname(__DIR__) . '/db.php';
 $page_title = 'Orders';
 include dirname(__DIR__) . '/includes/admin_header.php';
 
-$restaurant = get_restaurant();
+// Use the logged-in admin's assigned restaurant
+$restaurant = $current_user['restaurantId']
+    ? get_restaurant_by_id($current_user['restaurantId'])
+    : get_restaurant();
 $rid = $restaurant['id'] ?? null;
 
-$status_filter = $_GET['status'] ?? '';
+$status_filter  = $_GET['status'] ?? '';
 $valid_statuses = ['PENDING','CONFIRMED','PREPARING','READY','OUT_FOR_DELIVERY','COMPLETED','CANCELLED'];
 
 $page  = max(1, (int)($_GET['page'] ?? 1));
@@ -31,7 +34,6 @@ $orders = $rid ? db_query(
 
 $total_pages = (int)ceil($total / $limit);
 
-// Fetch items per order
 $order_items = [];
 foreach ($orders as $ord) {
     $order_items[$ord['id']] = db_query(
@@ -41,7 +43,6 @@ foreach ($orders as $ord) {
 }
 ?>
 
-<!-- Filters -->
 <div class="filter-bar">
     <?php foreach (array_merge([''], $valid_statuses) as $s): ?>
         <a href="orders.php<?= $s ? '?status=' . urlencode($s) : '' ?>"
@@ -70,7 +71,6 @@ foreach ($orders as $ord) {
             <span class="text-muted"><?= date('M d H:i', strtotime($ord['createdAt'])) ?></span>
         </div>
     </div>
-
     <div class="order-admin-items">
         <?php foreach ($order_items[$ord['id']] as $oi): ?>
             <span class="order-item-chip"><?= (int)$oi['quantity'] ?>&times; <?= htmlspecialchars($oi['itemName']) ?></span>
@@ -79,7 +79,6 @@ foreach ($orders as $ord) {
             <div class="order-notes"><em>Note: <?= htmlspecialchars($ord['notes']) ?></em></div>
         <?php endif; ?>
     </div>
-
     <?php
     $transitions = [
         'PENDING'          => 'CONFIRMED',
@@ -110,7 +109,6 @@ foreach ($orders as $ord) {
 <?php endforeach; endif; ?>
 </div>
 
-<!-- Pagination -->
 <?php if ($total_pages > 1): ?>
 <div class="pagination">
     <?php for ($p = 1; $p <= $total_pages; $p++): ?>
@@ -143,7 +141,6 @@ document.querySelectorAll('.update-status-btn').forEach(btn => {
     });
 });
 
-// Auto-refresh if there are active orders
 const hasPending = <?= json_encode((bool)array_filter($orders, fn($o) => in_array($o['status'], ['PENDING','CONFIRMED','PREPARING']))) ?>;
 if (hasPending) setTimeout(() => location.reload(), 20000);
 </script>

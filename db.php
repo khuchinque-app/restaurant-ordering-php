@@ -59,3 +59,7 @@ function get_restaurant(?string $slug = null): ?array {
     $slug = $slug ?? DEFAULT_RESTAURANT_SLUG;
     return db_fetch('SELECT * FROM Restaurant WHERE slug = ? AND isActive = 1', [$slug]);
 }
+
+function get_restaurant_by_id(string $id): ?array {
+    return db_fetch('SELECT * FROM Restaurant WHERE id = ? AND isActive = 1', [$id]);
+}

@@ -1,35 +1,54 @@
 <?php
 require_once dirname(__DIR__) . '/db.php';
 $page_title = 'Menu Management';
-include dirname(__DIR__) . '/includes/admin_header.php';
+include dirname(__DIR__) . '/includes/superadmin_header.php';
 
-// Use the logged-in admin's assigned restaurant
-$restaurant = $current_user['restaurantId']
-    ? get_restaurant_by_id($current_user['restaurantId'])
-    : get_restaurant();
-$rid = $restaurant['id'] ?? null;
+$all_restaurants = db_query('SELECT id, name, slug FROM Restaurant WHERE isActive = 1 ORDER BY name ASC');
+
+// Selected restaurant from URL, default to first active one
+$selected_slug = $_GET['restaurant'] ?? ($all_restaurants[0]['slug'] ?? DEFAULT_RESTAURANT_SLUG);
+$restaurant    = get_restaurant($selected_slug);
+$rid           = $restaurant['id'] ?? null;
 
 $categories = $rid ? db_query('SELECT * FROM Category WHERE restaurantId = ? ORDER BY sortOrder ASC', [$rid]) : [];
 $items = $rid ? db_query(
-    'SELECT mi.*, c.name AS categoryName FROM MenuItem mi JOIN Category c ON c.id = mi.categoryId WHERE mi.restaurantId = ? ORDER BY c.sortOrder ASC, mi.name ASC',
+    'SELECT mi.*, c.name AS categoryName FROM MenuItem mi
+     JOIN Category c ON c.id = mi.categoryId
+     WHERE mi.restaurantId = ? ORDER BY c.sortOrder ASC, mi.name ASC',
     [$rid]
 ) : [];
 ?>
 
+<!-- Restaurant selector -->
+<div style="margin-bottom:1.25rem;display:flex;align-items:center;gap:.75rem;flex-wrap:wrap">
+    <label style="font-weight:600;white-space:nowrap">&#127974; Restaurant:</label>
+    <select id="restaurant-select" class="form-control" style="max-width:260px" onchange="location.href='menu.php?restaurant='+this.value">
+        <?php foreach ($all_restaurants as $r): ?>
+        <option value="<?= htmlspecialchars($r['slug']) ?>"
+                <?= $r['slug'] === $selected_slug ? 'selected' : '' ?>>
+            <?= htmlspecialchars($r['name']) ?>
+        </option>
+        <?php endforeach; ?>
+    </select>
+    <?php if ($restaurant): ?>
+        <span class="text-muted" style="font-size:.85rem">slug: <code><?= htmlspecialchars($restaurant['slug']) ?></code></span>
+    <?php endif; ?>
+</div>
+
 <?php if (!$restaurant): ?>
-<div class="alert alert-danger">No restaurant is assigned to your account. Please contact the superadmin.</div>
+<div class="sa-card"><p class="empty-state">No active restaurant found.</p></div>
 <?php else: ?>
-<p class="text-muted" style="margin-bottom:1rem;font-size:.85rem">&#127974; <?= htmlspecialchars($restaurant['name']) ?></p>
 
 <div class="menu-mgmt-layout">
-<!-- Categories Panel -->
-<div class="card">
-    <div class="card-header">
+
+<!-- Categories -->
+<div class="sa-card">
+    <div class="sa-card-header">
         <h2>Categories</h2>
         <button class="btn btn-primary btn-sm" id="add-category-btn">+ Add</button>
     </div>
 
-    <div id="add-category-form" class="inline-form" style="display:none">
+    <div id="add-category-form" style="display:none;padding:1rem;border-bottom:1px solid #e2e8f0">
         <form id="category-form">
             <div class="form-row">
                 <input type="text" name="name" class="form-control" placeholder="Category name" required>
@@ -66,14 +85,14 @@ $items = $rid ? db_query(
     </table>
 </div>
 
-<!-- Menu Items Panel -->
-<div class="card">
-    <div class="card-header">
+<!-- Menu Items -->
+<div class="sa-card">
+    <div class="sa-card-header">
         <h2>Menu Items</h2>
         <button class="btn btn-primary btn-sm" id="add-item-btn">+ Add Item</button>
     </div>
 
-    <div class="filter-bar">
+    <div class="filter-bar" style="padding:0 1rem 1rem">
         <select id="cat-filter" class="form-control" style="width:auto">
             <option value="">All Categories</option>
             <?php foreach ($categories as $cat): ?>
@@ -118,6 +137,7 @@ $items = $rid ? db_query(
         </tbody>
     </table>
 </div>
+
 </div>
 
 <!-- Add/Edit Item Modal -->
@@ -144,7 +164,7 @@ $items = $rid ? db_query(
                     </select>
                 </div>
                 <div class="form-group">
-                    <label>Price (<?= htmlspecialchars($restaurant['currency'] ?? '$') ?>) *</label>
+                    <label>Price *</label>
                     <input type="number" name="price" id="item-price" class="form-control" step="0.01" min="0" required>
                 </div>
                 <div class="form-group">
@@ -161,7 +181,8 @@ $items = $rid ? db_query(
                 </div>
                 <div class="form-group form-full">
                     <label>Description</label>
-                    <textarea name="description" id="item-desc" class="form-control" rows="3" placeholder="Describe the dish, ingredients, allergens..."></textarea>
+                    <textarea name="description" id="item-desc" class="form-control" rows="3"
+                              placeholder="Describe the dish, ingredients, allergens..."></textarea>
                 </div>
                 <div class="form-group form-full">
                     <label>Image</label>
@@ -194,7 +215,7 @@ $items = $rid ? db_query(
 
 <script>
 const RESTAURANT_ID   = <?= json_encode($rid) ?>;
-const RESTAURANT_SLUG = <?= json_encode($restaurant['slug'] ?? DEFAULT_RESTAURANT_SLUG) ?>;
+const RESTAURANT_SLUG = <?= json_encode($selected_slug) ?>;
 
 // ── Image upload ──────────────────────────────────────────────────────────────
 (function () {
@@ -205,32 +226,24 @@ const RESTAURANT_SLUG = <?= json_encode($restaurant['slug'] ?? DEFAULT_RESTAURAN
     const previewImg  = document.getElementById('preview-img');
 
     function showPreview(src) {
-        if (src) {
-            previewImg.src = src;
-            previewWrap.style.display = '';
-        } else {
-            previewWrap.style.display = 'none';
-        }
+        if (src) { previewImg.src = src; previewWrap.style.display = ''; }
+        else      { previewWrap.style.display = 'none'; }
     }
 
     urlInput?.addEventListener('input', () => showPreview(urlInput.value));
 
-    // When the edit modal opens, populate the image preview
     document.addEventListener('item-modal-open', (e) => {
         showPreview(e.detail?.image || '');
-        statusEl.textContent = '';
+        if (statusEl) statusEl.textContent = '';
     });
 
     fileInput?.addEventListener('change', async function () {
         const file = this.files[0];
         if (!file) return;
-
         statusEl.textContent = 'Uploading…';
         statusEl.style.color = '#6b7280';
-
         const fd = new FormData();
         fd.append('image', file);
-
         try {
             const res  = await fetch('/api/menu/upload.php?restaurant=' + RESTAURANT_SLUG, {
                 method: 'POST', credentials: 'include', body: fd,
@@ -249,9 +262,9 @@ const RESTAURANT_SLUG = <?= json_encode($restaurant['slug'] ?? DEFAULT_RESTAURAN
             statusEl.textContent = '✗ Network error';
             statusEl.style.color = '#ef4444';
         }
-        this.value = ''; // allow re-upload of same file
+        this.value = '';
     });
 })();
 </script>
 
-<?php include dirname(__DIR__) . '/includes/admin_footer.php'; ?>
+<?php include dirname(__DIR__) . '/includes/superadmin_footer.php'; ?>

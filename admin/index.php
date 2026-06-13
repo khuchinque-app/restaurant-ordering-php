@@ -3,8 +3,12 @@ require_once dirname(__DIR__) . '/db.php';
 $page_title = 'Dashboard';
 include dirname(__DIR__) . '/includes/admin_header.php';
 
-$restaurant = get_restaurant();
+// Use the logged-in admin's assigned restaurant
+$restaurant = $current_user['restaurantId']
+    ? get_restaurant_by_id($current_user['restaurantId'])
+    : get_restaurant();
 $rid = $restaurant['id'] ?? null;
+
 $today = date('Y-m-d') . ' 00:00:00';
 
 $today_orders   = $rid ? (int)(db_fetch('SELECT COUNT(*) AS n FROM "Order" WHERE restaurantId = ? AND createdAt >= ?', [$rid, $today])['n'] ?? 0) : 0;
@@ -16,7 +20,6 @@ $low_stock = $rid ? db_query('SELECT id, name, stockQuantity, lowStockThreshold 
 $recent_orders = $rid ? db_query('SELECT id, orderNumber, status, totalAmount, customerName, createdAt FROM "Order" WHERE restaurantId = ? ORDER BY createdAt DESC LIMIT 10', [$rid]) : [];
 ?>
 
-<!-- Stat Cards -->
 <div class="stats-grid">
     <div class="stat-card">
         <div class="stat-icon" style="background:#dbeafe">&#128230;</div>
@@ -48,8 +51,11 @@ $recent_orders = $rid ? db_query('SELECT id, orderNumber, status, totalAmount, c
     </div>
 </div>
 
+<?php if ($restaurant): ?>
+<p class="text-muted" style="margin-bottom:1rem;font-size:.85rem">&#127974; Managing: <strong><?= htmlspecialchars($restaurant['name']) ?></strong></p>
+<?php endif; ?>
+
 <div class="dashboard-grid">
-    <!-- Recent Orders -->
     <div class="card">
         <div class="card-header">
             <h2>Recent Orders</h2>
@@ -75,7 +81,6 @@ $recent_orders = $rid ? db_query('SELECT id, orderNumber, status, totalAmount, c
         <?php endif; ?>
     </div>
 
-    <!-- Low Stock -->
     <div class="card">
         <div class="card-header">
             <h2>&#9888; Low Stock Alert</h2>
