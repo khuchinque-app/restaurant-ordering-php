@@ -9,6 +9,13 @@ $slug   = $_GET['restaurant'] ?? DEFAULT_RESTAURANT_SLUG;
 
 $restaurant = get_restaurant($slug);
 if (!$restaurant) json_error(404, 'Restaurant not found');
+
+// ADMIN and MANAGER are restricted to their assigned restaurant;
+// only SUPERADMIN may access any restaurant.
+if ($user['role'] !== 'SUPERADMIN' && $user['restaurantId'] !== $restaurant['id']) {
+    json_error(403, 'Access denied to this restaurant');
+}
+
 $rid = $restaurant['id'];
 
 if ($method === 'GET') {
@@ -28,16 +35,19 @@ if ($method === 'GET') {
 
 if ($method === 'POST') {
     if ($user['role'] !== 'SUPERADMIN') json_error(403, 'Only Superadmin can adjust stock');
-    $body        = json_decode(file_get_contents('php://input'), true) ?? [];
+    $body         = json_decode(file_get_contents('php://input'), true) ?? [];
     $menu_item_id = $body['menuItemId'] ?? '';
-    $quantity    = (int)($body['quantity'] ?? 0);
-    $type        = $body['type'] ?? 'INCREASE';
-    $reason      = $body['reason'] ?? null;
+    $quantity     = (int)($body['quantity'] ?? 0);
+    $type         = $body['type'] ?? 'INCREASE';
+    $reason       = $body['reason'] ?? null;
 
     if (!$menu_item_id || $quantity <= 0) json_error(400, 'menuItemId and quantity > 0 required');
 
     $item = db_fetch('SELECT * FROM MenuItem WHERE id = ?', [$menu_item_id]);
     if (!$item) json_error(404, 'Menu item not found');
+
+    // Confirm the item belongs to the restaurant this superadmin is managing
+    if ($item['restaurantId'] !== $rid) json_error(403, 'Item does not belong to this restaurant');
 
     $current = (int)($item['stockQuantity'] ?? 0);
     if ($type === 'INCREASE' || $type === 'ADD') {

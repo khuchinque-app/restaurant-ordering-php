@@ -4,10 +4,13 @@ require_once dirname(__DIR__, 2) . '/db.php';
 require_once dirname(__DIR__, 2) . '/includes/activity.php';
 
 $method = $_SERVER['REQUEST_METHOD'];
+session_init();
 
+// ── GET ──────────────────────────────────────────────────────────────────────
 if ($method === 'GET') {
     $user = get_auth_user();
 
+    // Single order by ID
     if (!empty($_GET['id'])) {
         $order = db_fetch(
             'SELECT o.*, r.name AS restaurantName FROM "Order" o
@@ -15,22 +18,53 @@ if ($method === 'GET') {
             [$_GET['id']]
         );
         if (!$order) json_error(404, 'Order not found');
+
+        // Ownership check: staff see all, customers see their own,
+        // guests see only session-tracked orders.
+        if ($user && in_array($user['role'], ['ADMIN', 'SUPERADMIN', 'MANAGER'])) {
+            // staff — unrestricted
+        } elseif ($user && $order['customerId'] === $user['id']) {
+            // authenticated owner — allowed
+        } else {
+            $tracked = $_SESSION['order_ids'] ?? [];
+            if (!in_array($order['id'], $tracked)) {
+                json_error(403, 'Access denied');
+            }
+        }
+
         $order['items'] = db_query(
-            'SELECT oi.*, mi.name AS itemName FROM OrderItem oi JOIN MenuItem mi ON mi.id = oi.menuItemId WHERE oi.orderId = ?',
+            'SELECT oi.*, mi.name AS itemName FROM OrderItem oi
+             JOIN MenuItem mi ON mi.id = oi.menuItemId WHERE oi.orderId = ?',
             [$order['id']]
         );
         json_ok($order);
     }
 
+    // Order list — unauthenticated callers only see their session-tracked orders
     $where  = [];
     $params = [];
 
-    if ($user && $user['role'] === 'CUSTOMER') {
+    if ($user && in_array($user['role'], ['ADMIN', 'SUPERADMIN', 'MANAGER'])) {
+        // Staff: may filter by restaurant or customer
+        if (!empty($_GET['restaurantSlug'])) {
+            $r = get_restaurant($_GET['restaurantSlug']);
+            if ($r) { $where[] = 'o.restaurantId = ?'; $params[] = $r['id']; }
+        }
+        if (!empty($_GET['customerId'])) {
+            $where[]  = 'o.customerId = ?';
+            $params[] = $_GET['customerId'];
+        }
+    } elseif ($user && $user['role'] === 'CUSTOMER') {
         $where[]  = 'o.customerId = ?';
         $params[] = $user['id'];
-    } elseif (!empty($_GET['restaurantSlug'])) {
-        $r = get_restaurant($_GET['restaurantSlug']);
-        if ($r) { $where[] = 'o.restaurantId = ?'; $params[] = $r['id']; }
+    } elseif (!empty($_SESSION['order_ids'])) {
+        // Unauthenticated guest: only session-tracked orders
+        $ids    = array_slice($_SESSION['order_ids'], 0, 20);
+        $marks  = implode(',', array_fill(0, count($ids), '?'));
+        $where[] = "o.id IN ($marks)";
+        $params  = array_merge($params, $ids);
+    } else {
+        json_error(401, 'Authentication required');
     }
 
     if (!empty($_GET['status'])) { $where[] = 'o.status = ?'; $params[] = $_GET['status']; }
@@ -53,6 +87,7 @@ if ($method === 'GET') {
     ]);
 }
 
+// ── POST ─────────────────────────────────────────────────────────────────────
 if ($method === 'POST') {
     $body = json_decode(file_get_contents('php://input'), true) ?? [];
 
@@ -65,17 +100,15 @@ if ($method === 'POST') {
     $items = $body['items'] ?? [];
     if (empty($items)) json_error(400, 'Order must have at least one item');
 
-    $total_amount = 0;
-    $item_count   = 0;
-    $order_items  = [];
-
+    // Pre-validate item IDs and compute prices (read-only pass, no lock yet).
+    // Stock is re-validated atomically inside the exclusive transaction below.
+    $order_items = [];
     foreach ($items as $item) {
+        if (empty($item['menuItemId']) || empty($item['quantity']) || (int)$item['quantity'] < 1) {
+            json_error(400, 'Each item requires menuItemId and quantity >= 1');
+        }
         $menu_item = db_fetch('SELECT * FROM MenuItem WHERE id = ? AND isAvailable = 1', [$item['menuItemId']]);
         if (!$menu_item) json_error(400, "Item {$item['menuItemId']} is not available");
-
-        if ($menu_item['stockQuantity'] !== null && (int)$menu_item['stockQuantity'] < (int)$item['quantity']) {
-            json_error(400, "Insufficient stock for {$menu_item['name']}");
-        }
 
         $modifiers_total = 0;
         if (!empty($item['modifiers'])) {
@@ -85,8 +118,6 @@ if ($method === 'POST') {
         }
         $unit_price  = (float)$menu_item['price'] + $modifiers_total;
         $total_price = $unit_price * (int)$item['quantity'];
-        $total_amount += $total_price;
-        $item_count   += (int)$item['quantity'];
 
         $order_items[] = [
             'menuItemId'  => $item['menuItemId'],
@@ -102,10 +133,33 @@ if ($method === 'POST') {
     $order_id     = new_id();
     $order_number = new_order_number();
 
-    db_transaction(function ($db) use (
-        $order_id, $order_number, $total_amount, $item_count, $body, $current_user,
-        $restaurant_id, $order_items
-    ) {
+    // BEGIN IMMEDIATE acquires a write-lock immediately, preventing concurrent
+    // orders from both passing the stock check on the same last unit.
+    $db = get_db();
+    $db->exec('BEGIN IMMEDIATE');
+    try {
+        $total_amount = 0;
+        $item_count   = 0;
+
+        foreach ($order_items as $oi) {
+            // Re-check availability and stock inside the locked transaction
+            $stmt = $db->prepare(
+                'SELECT stockQuantity, isAvailable, name FROM MenuItem WHERE id = ?'
+            );
+            $stmt->execute([$oi['menuItemId']]);
+            $live = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            if (!$live || !$live['isAvailable']) {
+                throw new RuntimeException('Item is no longer available');
+            }
+            if ($live['stockQuantity'] !== null && (int)$live['stockQuantity'] < $oi['quantity']) {
+                throw new RuntimeException("Insufficient stock for {$live['name']}");
+            }
+
+            $total_amount += (float)$oi['totalPrice'];
+            $item_count   += $oi['quantity'];
+        }
+
         $db->prepare(
             'INSERT INTO "Order" (id, orderNumber, status, totalAmount, itemCount, notes,
               customerName, customerPhone, customerId, restaurantId, createdAt, updatedAt)
@@ -123,41 +177,61 @@ if ($method === 'POST') {
         foreach ($order_items as $oi) {
             $item_id = new_id();
             $db->prepare(
-                'INSERT INTO OrderItem (id, orderId, menuItemId, quantity, unitPrice, totalPrice, notes, modifiers, createdAt)
+                'INSERT INTO OrderItem
+                   (id, orderId, menuItemId, quantity, unitPrice, totalPrice, notes, modifiers, createdAt)
                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime("now"))'
-            )->execute([$item_id, $order_id, $oi['menuItemId'], $oi['quantity'], $oi['unitPrice'], $oi['totalPrice'], $oi['notes'], $oi['modifiers']]);
+            )->execute([
+                $item_id, $order_id, $oi['menuItemId'],
+                $oi['quantity'], $oi['unitPrice'], $oi['totalPrice'],
+                $oi['notes'], $oi['modifiers'],
+            ]);
 
-            // Decrement stock
+            // Decrement stock; preserve explicit isAvailable=0 set by an admin.
             $db->prepare(
-                'UPDATE MenuItem SET stockQuantity = MAX(0, stockQuantity - ?),
-                  isAvailable = CASE WHEN stockQuantity - ? <= 0 THEN 0 ELSE 1 END,
-                  updatedAt = datetime("now")
+                'UPDATE MenuItem
+                 SET stockQuantity = MAX(0, stockQuantity - ?),
+                     isAvailable   = CASE
+                                       WHEN isAvailable = 0        THEN 0
+                                       WHEN stockQuantity - ? <= 0 THEN 0
+                                       ELSE 1
+                                     END,
+                     updatedAt = datetime("now")
                  WHERE id = ? AND stockQuantity IS NOT NULL'
             )->execute([$oi['quantity'], $oi['quantity'], $oi['menuItemId']]);
         }
 
-        // Create chat room
         $chat_id = new_id();
-        $db->prepare('INSERT INTO ChatRoom (id, orderId, type, createdAt, updatedAt) VALUES (?, ?, "ORDER", datetime("now"), datetime("now"))')->execute([$chat_id, $order_id]);
-    });
+        $db->prepare(
+            'INSERT INTO ChatRoom (id, orderId, type, createdAt, updatedAt)
+             VALUES (?, ?, "ORDER", datetime("now"), datetime("now"))'
+        )->execute([$chat_id, $order_id]);
+
+        $db->exec('COMMIT');
+    } catch (Throwable $e) {
+        $db->exec('ROLLBACK');
+        json_error(400, $e->getMessage());
+    }
 
     $order = db_fetch(
-        'SELECT o.*, r.name AS restaurantName FROM "Order" o JOIN Restaurant r ON r.id = o.restaurantId WHERE o.id = ?',
+        'SELECT o.*, r.name AS restaurantName FROM "Order" o
+         JOIN Restaurant r ON r.id = o.restaurantId WHERE o.id = ?',
         [$order_id]
     );
     $order['items'] = db_query(
-        'SELECT oi.*, mi.name AS itemName FROM OrderItem oi JOIN MenuItem mi ON mi.id = oi.menuItemId WHERE oi.orderId = ?',
+        'SELECT oi.*, mi.name AS itemName FROM OrderItem oi
+         JOIN MenuItem mi ON mi.id = oi.menuItemId WHERE oi.orderId = ?',
         [$order_id]
     );
 
     json_response(['success' => true, 'data' => $order], 201);
 }
 
+// ── PUT / PATCH ───────────────────────────────────────────────────────────────
 if ($method === 'PUT' || $method === 'PATCH') {
     $user  = require_auth();
     $id    = $_GET['id'] ?? '';
     if (!$id) json_error(400, 'Order ID required');
-    $body  = json_decode(file_get_contents('php://input'), true) ?? [];
+    $body   = json_decode(file_get_contents('php://input'), true) ?? [];
     $status = $body['status'] ?? '';
 
     $valid_statuses = ['PENDING','CONFIRMED','PREPARING','READY','OUT_FOR_DELIVERY','COMPLETED','CANCELLED'];
@@ -165,6 +239,16 @@ if ($method === 'PUT' || $method === 'PATCH') {
 
     $order = db_fetch('SELECT * FROM "Order" WHERE id = ?', [$id]);
     if (!$order) json_error(404, 'Order not found');
+
+    // Customers may only cancel their own orders; all other transitions require staff.
+    if ($user['role'] === 'CUSTOMER') {
+        if ($order['customerId'] !== $user['id']) {
+            json_error(403, 'Access denied');
+        }
+        if ($status !== 'CANCELLED') {
+            json_error(403, 'Customers may only cancel orders');
+        }
+    }
 
     $transitions = [
         'PENDING'          => ['CONFIRMED', 'CANCELLED'],
@@ -186,7 +270,6 @@ if ($method === 'PUT' || $method === 'PATCH') {
         [$status, $id]
     );
 
-    // Notify customer
     if ($order['customerId']) {
         $notif_id = new_id();
         db_execute(

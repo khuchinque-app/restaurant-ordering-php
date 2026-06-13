@@ -3,6 +3,11 @@ const API_BASE        = '/api';
 const TAX_RATE        = 0.10;
 const CART_KEY        = 'cart_' + RESTAURANT_SLUG;
 
+// Partner restaurant (shown in the cross-restaurant banner)
+const PARTNER_SLUG = 'aseng';
+const PARTNER_PORT = 7504;
+const PARTNER_NAME = 'Aseng';
+
 // ── Cart ──────────────────────────────────────────────
 let cart = [];
 try { cart = JSON.parse(localStorage.getItem(CART_KEY) || '[]'); } catch { cart = []; }
@@ -114,7 +119,6 @@ async function placeOrder() {
         if (data.success) {
             clearCart();
             closeCart();
-            // Track in session
             fetch(`${API_BASE}/orders/track.php`, {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ orderId: data.data.id })
@@ -141,7 +145,6 @@ function showOrderConfirm(orderNumber) {
 let allItems = [], activeCategory = 'all';
 
 async function loadMenu() {
-    // Get restaurant ID
     const rRes = await fetch(`${API_BASE}/menu/categories.php?restaurant=${RESTAURANT_SLUG}`);
     const rData = await rRes.json();
     if (!rData.success) { document.getElementById('menu-grid').innerHTML = '<p style="color:red">Failed to load menu.</p>'; return; }
@@ -151,7 +154,6 @@ async function loadMenu() {
     const itemsData = await itemsRes.json();
     allItems = itemsData.success ? itemsData.data.items : [];
 
-    // Stash restaurant ID for ordering
     const infoRes = await fetch(`/api/menu/restaurant_info.php?restaurant=${RESTAURANT_SLUG}`);
     if (infoRes.ok) { const info = await infoRes.json(); if (info.success) window.RESTAURANT_ID = info.data.id; }
 
@@ -203,6 +205,12 @@ function renderItems(items) {
 
 // ── Init ──────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
+    // Set the cross-restaurant link based on the actual hostname
+    const partnerLink = document.getElementById('partner-link');
+    if (partnerLink) {
+        partnerLink.href = `${window.location.protocol}//${window.location.hostname}:${PARTNER_PORT}/aseng/`;
+    }
+
     renderCartBadge();
     loadMenu();
     document.getElementById('search-input')?.addEventListener('input', applyFilter);
