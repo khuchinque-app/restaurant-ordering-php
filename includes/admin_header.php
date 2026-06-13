@@ -1,6 +1,10 @@
 <?php
 require_once dirname(__DIR__) . '/auth.php';
-$current_user = require_admin(true);
+$current_user = get_auth_user();
+if (!$current_user || !in_array($current_user['role'], ['ADMIN', 'SUPERADMIN', 'MANAGER'])) {
+    header('Location: /admin_login.php');
+    exit;
+}
 $current_path = $_SERVER['REQUEST_URI'] ?? '/';
 ?>
 <!DOCTYPE html>
@@ -25,7 +29,6 @@ $current_path = $_SERVER['REQUEST_URI'] ?? '/';
         <hr>
         <?php require_once dirname(__DIR__) . '/includes/storefronts.php'; render_storefront_nav(); ?>
         <hr>
-        <a href="<?= APP_URL ?>/menu.php">&#127760; View Site</a>
         <a href="<?= APP_URL ?>/logout.php">&#128682; Logout</a>
     </nav>
     <div class="sidebar-user">

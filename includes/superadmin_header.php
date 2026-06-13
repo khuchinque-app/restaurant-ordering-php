@@ -3,7 +3,7 @@ require_once dirname(__DIR__) . '/auth.php';
 session_init();
 $current_user = get_auth_user();
 if (!$current_user || $current_user['role'] !== 'SUPERADMIN') {
-    header('Location: ' . APP_URL . '/login.php?redirect=' . urlencode($_SERVER['REQUEST_URI'] ?? '/superadmin/'));
+    header('Location: /admin_login.php');
     exit;
 }
 $current_path = $_SERVER['REQUEST_URI'] ?? '/';
