@@ -10,7 +10,8 @@ require_once __DIR__ . '/db.php';
 $existing = db_fetch('SELECT id FROM Restaurant LIMIT 1');
 if ($existing) {
     echo "Setup already complete. Restaurant exists.\n";
-    echo "Admin login: admin@restaurant.com / admin123\n";
+    echo "Superadmin : superadmin@restaurant.com / superadmin123\n";
+    echo "Admin      : admin@restaurant.com / admin123\n";
     exit;
 }
 
@@ -19,6 +20,14 @@ db_execute(
     'INSERT INTO Restaurant (id, name, slug, description, isActive, createdAt, updatedAt)
      VALUES (?, ?, ?, ?, 1, datetime("now"), datetime("now"))',
     [$restaurant_id, 'Demo Restaurant', 'demo', 'A sample restaurant for testing']
+);
+
+// Superadmin user (no restaurantId — manages all restaurants)
+$superadmin_id = new_id();
+db_execute(
+    'INSERT INTO User (id, email, password, name, role, restaurantId, isActive, createdAt, updatedAt)
+     VALUES (?, ?, ?, ?, ?, NULL, 1, datetime("now"), datetime("now"))',
+    [$superadmin_id, 'superadmin@restaurant.com', password_hash('superadmin123', PASSWORD_DEFAULT), 'Super Admin', 'SUPERADMIN']
 );
 
 // Admin user
@@ -78,7 +87,9 @@ foreach ($menu_items as [$name, $desc, $price, $cat, $stock, $threshold]) {
 
 echo "=== Setup Complete! ===\n";
 echo "Restaurant : Demo Restaurant (slug: demo)\n";
+echo "Superadmin : superadmin@restaurant.com / superadmin123\n";
 echo "Admin      : admin@restaurant.com / admin123\n";
 echo "Customer   : customer@example.com / customer123\n";
 echo "Menu       : 10 items across 3 categories\n";
 echo "\nDELETE this file before going to production!\n";
+echo "CHANGE default passwords before going to production!\n";
